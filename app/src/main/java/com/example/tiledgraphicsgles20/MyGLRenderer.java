@@ -80,31 +80,32 @@ public class MyGLRenderer implements GLSurfaceView.Renderer {
             "}\n";
 
     private final String fragmentShaderCode =
-            "#version 100\n\n" +
-            "varying vec2 v_uv;\n\n" +
+            "#version 100\n" +
+            "varying vec2 v_uv;\n" +
             "uniform sampler2D s_map;\n" +
-            "uniform sampler2D s_tileset;\n\n" +
+            "uniform sampler2D s_tileset;\n" +
             "uniform vec2 u_mapd;\n" +
-            "uniform vec2 u_tilesetd;\n\n" +
+            "uniform vec2 u_tilesetd;\n" +
+            "uniform vec2 u_tiled;\n" +
+            "uniform vec2 u_ratio;\n" +
             "void main(void) {\n" +
             "    vec4 tmp = texture2D(s_map, v_uv);\n" +
-            "    vec2 tile_spec = vec2(tmp.x * 256.0, tmp.y * 256.0);\n\n" +
-            "    vec2 screen_tile_base = vec2(\n" +
-            "        floor(v_uv.x * u_mapd.x) / u_mapd.x,\n" +
-            "        floor(v_uv.y * u_mapd.y) / u_mapd.y\n" +
-            "    );\n\n" +
-            "    vec2 screen_tile_diff = vec2(\n" +
-            "        v_uv.x - screen_tile_base.x,\n" +
-            "        v_uv.y - screen_tile_base.y\n" +
-            "    );\n\n" +
-            "    vec2 pct_in_tile = vec2(\n" +
-            "        screen_tile_diff.x / (1.0 / u_mapd.x),\n" +
-            "        screen_tile_diff.y / (1.0 / u_mapd.y)\n" +
-            "    );\n\n" +
+            "    vec2 pixel_in_tileset = vec2(\n" +
+            "        u_tiled.x * floor(tmp.x * u_tilesetd.x),\n" +
+            "        u_tiled.y * floor(tmp.y * u_tilesetd.y)\n" +
+            "    );\n" +
+            "    vec2 tile_offset = vec2(\n" +
+            "        (1.0 / u_tilesetd.x) * pixel_in_tileset.x,\n" +
+            "        (1.0 / u_tilesetd.y) * pixel_in_tileset.y\n" +
+            "    );\n" +
+            "    vec2 offset_in_tile = vec2(\n" +
+            "        (v_uv.x - (floor(v_uv.x * u_mapd.x) / u_mapd.x)) * u_ratio.x,\n" +
+            "        (v_uv.y - (floor(v_uv.y * u_mapd.y) / u_mapd.y)) * u_ratio.y\n" +
+            "    );\n" +
             "    vec2 tileset_sample = vec2(\n" +
-            "        (tile_spec.x / u_tilesetd.x) + (pct_in_tile.x / u_tilesetd.x),\n" +
-            "        (tile_spec.y / u_tilesetd.y) + (pct_in_tile.y / u_tilesetd.y)\n" +
-            "    );\n\n" +
+            "        tile_offset.x + offset_in_tile.x,\n" +
+            "        tile_offset.y + offset_in_tile.y\n" +
+            "    );\n" +
             "    gl_FragColor = texture2D(s_tileset, tileset_sample);\n" +
             "}\n";
 
@@ -165,18 +166,18 @@ public class MyGLRenderer implements GLSurfaceView.Renderer {
     }
 
     private void loadMap() {
-        byte[] data = new byte[4 * 4 * 4];
+        byte[] data = new byte[map_height * map_height * 4];
         //int oi = 0;
         int ni = 0;
         for (int y = 0; y < map_height; y++) {
             for (int x = 0; x < map_width; x++) {
-                data[ni] = 3; ni++; // oi++;
+                data[ni] = 5; ni++; // oi++;
                 data[ni] = 1; ni++; // oi++;
                 data[ni] = 0; ni++;
                 data[ni] = (byte) 255; ni++;
             }
         }
-        ByteBuffer buffer = ByteBuffer.allocateDirect(4 * 4 * 4);
+        ByteBuffer buffer = ByteBuffer.allocateDirect(map_height * map_height * 4);
         buffer.put(data);
         buffer.position(0);
         final int[] id = {0};
@@ -254,8 +255,16 @@ public class MyGLRenderer implements GLSurfaceView.Renderer {
         checkGlError("u_mapd");
 
         int u_tilesetd = GLES20.glGetUniformLocation(program_id, "u_tilesetd");
-        GLES20.glUniform2f(u_tilesetd, 16, 16);
+        GLES20.glUniform2f(u_tilesetd, 256, 256);
         checkGlError("u_tilesetd");
+
+        int u_tiled = GLES20.glGetUniformLocation(program_id, "u_tiled");
+        GLES20.glUniform2f(u_tiled, 16, 16);
+        checkGlError("u_tiled");
+
+        int u_ratio = GLES20.glGetUniformLocation(program_id, "u_ratio");
+        GLES20.glUniform2f(u_ratio, map_width / 16, map_height / 16);
+        checkGlError("u_ratio");
 
         GLES20.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_id);
         GLES20.glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0);
